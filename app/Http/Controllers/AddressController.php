@@ -58,6 +58,48 @@ class AddressController extends Controller
         ]);
     }
 
+    public function posstore(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'user_id' => 'required|exists:users,id',
+            'name'    => 'required|string|max:255',
+            'phone'   => 'required|digits:10',
+            'address' => 'required|string',
+            'city'    => 'required|string|max:100',
+            'state'   => 'required|string|max:100',
+            'country' => 'nullable|string|max:100',
+            'pincode' => 'required|digits:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $validator->errors()->first(),
+            ], 422);
+        }
+
+        // ✅ If first address → make default
+        $isFirst = Address::where('user_id', $request->user_id)->count() == 0;
+
+        $address = Address::create([
+            'user_id'    => $request->user_id,
+            'name'       => $request->name,
+            'phone'      => $request->phone,
+            'address'    => $request->address,
+            'city'       => $request->city,
+            'state'      => $request->state,
+            'country'    => $request->country ?? 'India',
+            'pincode'    => $request->pincode,
+            'is_default' => $isFirst ? 1 : 0,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $address,
+            'message' => 'Address added successfully',
+        ]);
+    }
+
     /* ================= UPDATE ADDRESS ================= */
     public function update(Request $request, $id)
     {

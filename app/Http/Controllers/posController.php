@@ -1,32 +1,49 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Models\PendingSale;
 use App\Models\Product;
 use App\Models\ProductVariantCombination;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Services\Messenger360Service;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class posController extends Controller
 {
+
+    protected $messenger;
+
+    public function __construct(Messenger360Service $messenger)
+    {
+        $this->messenger = $messenger;
+    }
     public function store(Request $request)
     {
 
         $validator = Validator::make($request->all(), [
-            'customer_id'        => 'nullable|exists:users,id',
-            'payment_method'     => 'required|string',
-            'paid_amount'        => 'required|numeric|min:0',
+            'customer_id'              => 'nullable|exists:users,id',
+            'payment_method'           => 'required|string',
+            'paid_amount'              => 'required|numeric|min:0',
 
-            'customer_name'      => 'nullable|string|max:255',
-            'customer_phone'     => 'nullable|string|max:20',
+            'customer_name'            => 'nullable|string|max:255',
+            'customer_phone'           => 'nullable|string|max:20',
 
-            'items'              => 'required|array|min:1',
+            // ✅ Address JSON validation
+            'address_snapshot'         => 'required|array',
+            'address_snapshot.address' => 'required|string',
+            'address_snapshot.city'    => 'required|string',
+            'address_snapshot.state'   => 'required|string',
+            'address_snapshot.pincode' => 'required|string',
 
-            'items.*.product_id' => 'required|integer|exists:products,id',
-            'items.*.variant_id' => 'required|integer|exists:product_variant_combinations,id',
-            'items.*.qty'        => 'required|integer|min:1',
+            'items'                    => 'required|array|min:1',
+
+            'items.*.product_id'       => 'required|integer|exists:products,id',
+            'items.*.variant_id'       => 'required|integer|exists:product_variant_combinations,id',
+            'items.*.qty'              => 'required|integer|min:1',
         ]);
 
         if ($validator->fails()) {
@@ -89,22 +106,35 @@ class posController extends Controller
                 ], 422);
             }
 
+            // ✅ Build Address Snapshot
+            $addressSnapshot = [
+                'name'    => $request->customer_name,
+                'phone'   => $request->customer_phone,
+                'address' => $request->address_snapshot['address'],
+                'city'    => $request->address_snapshot['city'],
+                'state'   => $request->address_snapshot['state'],
+                'country' => $request->address_snapshot['country'] ?? 'India',
+                'pincode' => $request->address_snapshot['pincode'],
+            ];
+
             // 🧾 Create Sale
             $sale = Sale::create([
-                'invoice_number' => 'INV-' . now()->format('YmdHis') . '-' . rand(100, 999),
-                'customer_id'    => $request->customer_id,
-                'subtotal'       => $subtotal,
-                'discount_total' => $discountTotal,
-                'tax_total'      => $taxTotal,
-                'grand_total'    => $grandTotal,
+                'invoice_number'            => 'INV-' . now()->format('YmdHis') . '-' . rand(100, 999),
+                'customer_id'               => $request->customer_id,
+                'subtotal'                  => $subtotal,
+                'discount_total'            => $discountTotal,
+                'tax_total'                 => $taxTotal,
+                'grand_total'               => $grandTotal,
 
-                'payment_method' => $request->payment_method,
-                'paid_amount'    => $request->paid_amount,
-                'change_amount'  => $changeAmount,
+                'payment_method'            => $request->payment_method,
+                'paid_amount'               => $request->paid_amount,
+                'change_amount'             => $changeAmount,
 
-                'customer_name'  => $request->customer_name,
-                'customer_phone' => $request->customer_phone,
-                'status'         => 'completed',
+                'customer_name'             => $request->customer_name,
+                'customer_phone'            => $request->customer_phone,
+                // ✅ SAVE JSON COLUMN HERE
+                'shipping_address_snapshot' => $addressSnapshot,
+                'status'                    => 'completed',
             ]);
 
             // 🧾 Save Sale Items + Deduct Stock
@@ -162,4 +192,207 @@ class posController extends Controller
         }
     }
 
+    public function sendOrderOtp(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'customer_id'              => 'nullable|exists:users,id',
+            'customer_name'            => 'required|string',
+            'customer_phone'           => 'required|string',
+            'items'                    => 'required|array|min:1',
+            'items.*.variant_id'       => 'required|integer|exists:product_variant_combinations,id',
+            'items.*.qty'              => 'required|integer|min:1',
+            'address_snapshot'         => 'required|array',
+            'address_snapshot.address' => 'required|string',
+            'address_snapshot.city'    => 'required|string',
+            'address_snapshot.state'   => 'required|string',
+            'address_snapshot.pincode' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $validator->errors()->first(),
+            ], 422);
+        }
+
+        $itemsFormatted = [];
+        $subtotal       = 0;
+
+        foreach ($request->items as $item) {
+
+            $variant = ProductVariantCombination::with('product')
+                ->findOrFail($item['variant_id']);
+
+            $price     = $variant->extra_price;
+            $qty       = $item['qty'];
+            $lineTotal = $price * $qty;
+
+            $subtotal += $lineTotal;
+
+            $itemsFormatted[] = [
+                'product_name' => $variant->product->name,
+                'variant_name' => $variant->sku,
+                'price'        => $price,
+                'qty'          => $qty,
+                'total'        => $lineTotal,
+            ];
+        }
+
+        $grandTotal = $subtotal;
+
+        $snapshot  = [
+            'customer_name'    => $request->customer_name,
+            'customer_phone'   => $request->customer_phone,
+            'items'            => $itemsFormatted,
+            'subtotal'         => $subtotal,
+            'discount'         => 0,
+            'grand_total'      => $grandTotal,
+            'address_snapshot' => $request->address_snapshot,
+        ];
+
+        $otp = rand(100000, 999999);
+
+        $pending = PendingSale::create([
+            'customer_id'    => $request->customer_id,
+            'order_snapshot' => $snapshot,
+            'otp'            => $otp,
+            'expires_at'     => Carbon::now()->addMinutes(5),
+        ]);
+
+        // Format WhatsApp message
+        $message = $this->formatOrderMessage($snapshot, $otp);
+
+        // Send WhatsApp
+        $this->messenger->send(
+            $request->customer_phone,
+            $message
+        );
+
+        return response()->json([
+            'success'    => true,
+            'message'    => 'OTP sent successfully',
+            'pending_id' => $pending->id,
+        ]);
+    }
+
+    private function formatOrderMessage($snapshot, $otp)
+    {
+        $message  = "🧾 *Order Confirmation*\n\n";
+        $message .= "👤 Name: {$snapshot['customer_name']}\n";
+        $message .= "📱 Phone: {$snapshot['customer_phone']}\n\n";
+
+        $message .= "🛍 *Items:*\n";
+
+        foreach ($snapshot['items'] as $item) {
+            $message .= "- {$item['product_name']} ({$item['variant_name']})\n";
+            $message .= "  ₹{$item['price']} x {$item['qty']} = ₹{$item['total']}\n";
+        }
+
+        $message .= "\n💰 Subtotal: ₹{$snapshot['subtotal']}";
+        $message .= "\n🎯 Discount: ₹{$snapshot['discount']}";
+        $message .= "\n🧮 Total: ₹{$snapshot['grand_total']}\n\n";
+
+        $address = $snapshot['address_snapshot'];
+
+        $message .= "📍 *Delivery Address:*\n";
+        $message .= "{$address['address']}, {$address['city']}, {$address['state']} - {$address['pincode']}\n\n";
+
+        $message .= "🔐 Your OTP is: *{$otp}*\n";
+        $message .= "⏳ Valid for 5 minutes.";
+
+        return $message;
+    }
+
+    public function verifyOrderOtp22(Request $request)
+    {
+
+        $validator = Validator::make($request->all(), [
+            'otp' => 'required|digits:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $validator->errors()->first(),
+            ], 422);
+
+            // Get latest unexpired pending sale with this OTP
+            $pending = PendingSale::where('otp', $request->otp)
+                ->where('expires_at', '>=', Carbon::now())
+                ->latest()
+                ->first();
+
+            if (! $pending) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid or expired OTP',
+                ], 422);
+            }
+
+            // Optional: prevent re-use
+            if ($pending->verified_at) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'OTP already used',
+                ], 422);
+            }
+
+            // Mark as verified
+            $pending->update([
+                'verified_at' => Carbon::now(),
+            ]);
+
+            return response()->json([
+                'success'        => true,
+                'message'        => 'OTP verified successfully',
+                'pending_id'     => $pending->id,
+                'order_snapshot' => $pending->order_snapshot,
+            ]);
+        }
+    }
+
+    public function verifyOrderOtp(Request $request)
+    {
+
+        $validator = Validator::make($request->all(), [
+            'otp'        => 'required|digits:6',
+            'pending_id' => 'required|exists:pending_sales,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $validator->errors()->first(),
+            ], 422);
+
+            $pending = PendingSale::where('id', $request->pending_id)
+                ->where('otp', $request->otp)
+                ->where('expires_at', '>=', now())
+                ->first();
+
+            if (! $pending) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid or expired OTP',
+                ], 422);
+            }
+
+            if ($pending->verified_at) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'OTP already used',
+                ], 422);
+            }
+
+            $pending->update([
+                'verified_at' => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'OTP verified successfully',
+            ]);
+        }
+
+    }
 }

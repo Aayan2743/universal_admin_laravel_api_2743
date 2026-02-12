@@ -8,20 +8,14 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ContactSettingController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CustomerCareController;
-<<<<<<< HEAD
 use App\Http\Controllers\CustomerController;
-=======
->>>>>>> 65bd37eb910178f38bb3836676dedc01d1876557
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\menuController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OtpAuthController;
 use App\Http\Controllers\PaymentGatewayController;
-<<<<<<< HEAD
-use App\Http\Controllers\posController;
-=======
 use App\Http\Controllers\phonepaycontroller;
->>>>>>> 65bd37eb910178f38bb3836676dedc01d1876557
+use App\Http\Controllers\posController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\ProductSeoMetaController;
@@ -207,6 +201,10 @@ Route::prefix('admin-dashboard')->middleware(['api', 'jwt.auth'])->group(functio
         [ShiprocketController::class, 'createShipment']);
 
     // create pos order
+    Route::post('/send-order-otp', [PosController::class, 'sendOrderOtp']);
+
+    // 🟢 Step 2: Verify OTP & Create Final Order
+    Route::post('/verify-order-otp', [PosController::class, 'verifyOrderOtp']);
     Route::post('/pos/create-order', [posController::class, 'store']);
 
     // add customer
@@ -214,6 +212,7 @@ Route::prefix('admin-dashboard')->middleware(['api', 'jwt.auth'])->group(functio
     Route::post('/customers/store', [CustomerController::class, 'store']);
     Route::post('/customers/bulk-store', [CustomerController::class, 'bulkStore']);
     Route::get('/pos/search-user', [CustomerController::class, 'searchUser']);
+    Route::post('/save-address', [AddressController::class, 'posstore']);
 
 });
 
