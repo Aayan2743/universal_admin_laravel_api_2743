@@ -74,7 +74,8 @@ Route::prefix('auth')->group(function () {
 Route::prefix('admin-dashboard')->middleware(['api', 'jwt.auth'])->group(function () {
 
     // ================= AUTH =================
-    Route::get('/user-details', [AuthController::class, 'user_details']);
+    Route::get('/user-details', [AuthController::class, 'userDetails']);
+    Route::get('/user-order-details', [posController::class, 'userDetails']);
     Route::get('/profile', [AuthController::class, 'profile']);
     Route::post('/update-profile', [AuthController::class, 'updateProfile']);
     Route::get('/app-logo-settings', [SettingController::class, 'show']);
@@ -202,6 +203,7 @@ Route::prefix('admin-dashboard')->middleware(['api', 'jwt.auth'])->group(functio
 
     // create pos order
     Route::post('/send-order-otp', [PosController::class, 'sendOrderOtp']);
+    Route::post('/create-payment-link', [CartController::class, 'createPaymentLink']);
 
     // 🟢 Step 2: Verify OTP & Create Final Order
     Route::post('/verify-order-otp', [PosController::class, 'verifyOrderOtp']);
@@ -213,6 +215,12 @@ Route::prefix('admin-dashboard')->middleware(['api', 'jwt.auth'])->group(functio
     Route::post('/customers/bulk-store', [CustomerController::class, 'bulkStore']);
     Route::get('/pos/search-user', [CustomerController::class, 'searchUser']);
     Route::post('/save-address', [AddressController::class, 'posstore']);
+
+    // pos order details fetch
+    Route::get('/calling/orders', [posController::class, 'manualOrders']);
+    Route::get('/calling/order/{id}', [posController::class, 'manualOrderDetails']);
+    Route::post('/send-courier/{id}', [posController::class, 'sendToCourier']);
+    Route::get('/customer/{id}/orders', [posController::class, 'customerOrders']);
 
 });
 

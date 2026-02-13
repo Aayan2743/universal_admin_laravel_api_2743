@@ -171,4 +171,57 @@ class CartController extends Controller
         ]);
     }
 
+    /* ================= PAYMENT LINK ================= */
+
+    public function createPaymentLink(Request $request)
+    {
+        try {
+
+            $api = new Api(
+                env('RAZORPAY_KEY_ID'),
+                env('RAZORPAY_KEY_SECRET')
+            );
+
+            $validator = Validator::make($request->all(), [
+                'amount' => 'required|numeric|min:1',
+                'name'   => 'required|string',
+                'phone'  => 'required|digits:10',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $validator->errors()->first(),
+                ], 422);
+            }
+
+            $paymentLink = $api->paymentLink->create([
+                'amount'          => $request->amount * 100,
+                'currency'        => 'INR',
+                'description'     => 'POS Order Payment',
+                'customer'        => [
+                    'name'    => $request->name,
+                    'contact' => '91' . preg_replace('/[^0-9]/', '', $request->phone),
+                ],
+                'notify'          => [
+                    'sms' => true,
+                ],
+                'reminder_enable' => true,
+            ]);
+
+            return response()->json([
+                'success'      => true,
+                'payment_link' => $paymentLink['short_url'],
+                'link_id'      => $paymentLink['id'],
+            ]);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
 }

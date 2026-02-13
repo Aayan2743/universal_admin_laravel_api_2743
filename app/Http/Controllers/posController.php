@@ -6,7 +6,9 @@ use App\Models\Product;
 use App\Models\ProductVariantCombination;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\User;
 use App\Services\Messenger360Service;
+use App\Services\Shiprocket\ShiprocketOrderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -303,57 +305,8 @@ class posController extends Controller
         return $message;
     }
 
-    public function verifyOrderOtp22(Request $request)
-    {
-
-        $validator = Validator::make($request->all(), [
-            'otp' => 'required|digits:6',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors'  => $validator->errors()->first(),
-            ], 422);
-
-            // Get latest unexpired pending sale with this OTP
-            $pending = PendingSale::where('otp', $request->otp)
-                ->where('expires_at', '>=', Carbon::now())
-                ->latest()
-                ->first();
-
-            if (! $pending) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid or expired OTP',
-                ], 422);
-            }
-
-            // Optional: prevent re-use
-            if ($pending->verified_at) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'OTP already used',
-                ], 422);
-            }
-
-            // Mark as verified
-            $pending->update([
-                'verified_at' => Carbon::now(),
-            ]);
-
-            return response()->json([
-                'success'        => true,
-                'message'        => 'OTP verified successfully',
-                'pending_id'     => $pending->id,
-                'order_snapshot' => $pending->order_snapshot,
-            ]);
-        }
-    }
-
     public function verifyOrderOtp(Request $request)
     {
-
         $validator = Validator::make($request->all(), [
             'otp'        => 'required|digits:6',
             'pending_id' => 'required|exists:pending_sales,id',
@@ -362,37 +315,188 @@ class posController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors'  => $validator->errors()->first(),
+                'message' => $validator->errors()->first(),
             ], 422);
+        }
 
-            $pending = PendingSale::where('id', $request->pending_id)
-                ->where('otp', $request->otp)
-                ->where('expires_at', '>=', now())
-                ->first();
+        // Allow only last 5 minutes OTP
+        $pending = PendingSale::where('id', $request->pending_id)
+            ->where('otp', $request->otp)
+            ->where('created_at', '>=', now()->subMinutes(5))
+            ->first();
 
-            if (! $pending) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid or expired OTP',
-                ], 422);
-            }
+        if (! $pending) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid or expired OTP',
+            ], 422);
+        }
 
-            if ($pending->verified_at) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'OTP already used',
-                ], 422);
-            }
+        if ($pending->verified_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'OTP already used',
+            ], 422);
+        }
 
-            $pending->update([
-                'verified_at' => now(),
+        $pending->update([
+            'verified_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'OTP verified successfully',
+        ]);
+    }
+
+    public function manualOrders_old()
+    {
+        $orders = Sale::with([
+            'customer:id,name,phone', // 👈 only these fields
+        ])
+            ->orderBy('id', 'desc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $orders,
+        ]);
+    }
+
+    public function manualOrders(Request $request)
+    {
+        $query = Sale::with('customer:id,name,phone');
+
+        if ($request->search) {
+            $query->where(function ($q) use ($request) {
+                $q->where('invoice_number', 'like', "%{$request->search}%")
+                    ->orWhere('customer_name', 'like', "%{$request->search}%")
+                    ->orWhere('customer_phone', 'like', "%{$request->search}%");
+            });
+        }
+
+        $orders = $query->latest()->paginate(10);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $orders,
+        ]);
+    }
+
+    public function manualOrderDetails($id)
+    {
+        $order = Sale::with('items')->findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $order,
+        ]);
+    }
+
+    public function sendToCourier($id, ShiprocketOrderService $shiprocket, Request $request)
+    {
+        $order = Sale::with('items')->findOrFail($id);
+
+        if (! $order->shipping_address_snapshot) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Shipping address missing',
+            ], 422);
+        }
+
+        // return response()->json([
+        //     'success' => true,
+        //     'message' => $order,
+        // ], 200);
+
+        $shipping = $order->shipping_address_snapshot;
+
+        $items = [];
+
+        foreach ($order->items as $item) {
+            $items[] = [
+                "name"          => $item->product_name,
+                "sku"           => $item->sku ?? 'SKU-' . $item->id,
+                "units"         => $item->quantity,
+                "selling_price" => $item->price,
+            ];
+        }
+
+        $payload = [
+            "order_id"              => $order->invoice_number,
+            "order_date"            => now()->format("Y-m-d H:i"),
+            "pickup_location"       => "Home",
+            "billing_customer_name" => $shipping['name'],
+            "billing_last_name"     => "",
+            "billing_address"       => $shipping['address'],
+            "billing_city"          => $shipping['city'],
+            "billing_pincode"       => $shipping['pincode'],
+            "billing_state"         => $shipping['state'],
+            "billing_country"       => "India",
+            "billing_email"         => "test@example.com",
+            "billing_phone"         => $shipping['phone'],
+            "shipping_is_billing"   => true,
+            "order_items"           => $items,
+            "payment_method"        => "Prepaid",
+            "sub_total"             => $order->grand_total,
+            "length"                => $request->length,
+            "breadth"               => $request->breadth,
+            "height"                => $request->height,
+            "weight"                => $request->weight,
+        ];
+
+        try {
+
+            $response = $shiprocket->create($payload);
+
+            // Save Shiprocket order ID
+            $order->update([
+                'status' => 'shipped',
+                //  'shiprocket_order_id' => $response['order_id'] ?? null,
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'OTP verified successfully',
+                'message' => 'Order sent to Shiprocket successfully',
+                'data'    => $response,
             ]);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
         }
 
     }
+
+    public function userDetails(Request $request)
+    {
+        $customers = User::withCount('sales') // total orders
+            ->withSum('sales', 'grand_total')     // total amount
+            ->paginate(10);
+
+        return response()->json([
+            'data' => $customers->items(),
+            'meta' => [
+                'current_page' => $customers->currentPage(),
+                'last_page'    => $customers->lastPage(),
+                'per_page'     => $customers->perPage(),
+            ],
+        ]);
+    }
+
+    public function customerOrders($id)
+    {
+        $orders = Sale::where('customer_id', $id)
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $orders,
+        ]);
+    }
+
 }
