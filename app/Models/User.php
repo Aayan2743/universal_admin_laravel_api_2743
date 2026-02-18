@@ -89,4 +89,15 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasMany(Sale::class, 'customer_id');
     }
 
+    public function salaries()
+    {
+        return $this->hasMany(UserSalary::class);
+    }
+
+    public function currentSalary()
+    {
+        return $this->hasOne(UserSalary::class)
+            ->whereNull('effective_to');
+    }
+
 }

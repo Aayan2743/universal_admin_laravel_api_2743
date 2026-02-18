@@ -37,11 +37,13 @@ class AttendanceController extends Controller
     public function saveAttendance(Request $request)
     {
         $request->validate([
-            'user_id'  => 'required|exists:users,id',
-            'date'     => 'required|date',
-            'status'   => 'required|in:present,absent,leave',
-            'in_time'  => 'nullable',
-            'out_time' => 'nullable',
+            'user_id'   => 'required|exists:users,id',
+            'date'      => 'required|date',
+            // 'status'   => 'required|in:present,absent,leave',
+            'status'    => 'required|in:present,absent,leave,ot,c_off',
+            'in_time'   => 'nullable',
+            'out_time'  => 'nullable',
+            'ot_amount' => 'nullable|numeric|min:0',
         ]);
 
         Attendance::updateOrCreate(

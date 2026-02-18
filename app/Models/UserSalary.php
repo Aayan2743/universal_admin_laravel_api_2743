@@ -3,15 +3,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Attendance extends Model
+class UserSalary extends Model
 {
     protected $fillable = [
         'user_id',
-        'date',
-        'status',
-        'in_time',
-        'out_time',
-        'ot_amount',
+        'salary',
+        'effective_from',
+        'effective_to',
     ];
 
     public function user()

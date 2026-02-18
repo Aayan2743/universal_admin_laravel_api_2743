@@ -222,6 +222,15 @@ Route::prefix('admin-dashboard')->middleware(['api', 'jwt.auth'])->group(functio
     Route::post('/send-courier/{id}', [posController::class, 'sendToCourier']);
     Route::get('/customer/{id}/orders', [posController::class, 'customerOrders']);
 
+    // adding salary
+    // Route::post('/store', [UserSalaryController::class, 'store']);
+    // Route::post('/update', [UserSalaryController::class, 'updateSalary']);
+    // Route::get('/history/{user_id}', [UserSalaryController::class, 'history']);
+    // Route::get('/current/{user_id}', [UserSalaryController::class, 'current']);
+
+    Route::post('/update-salary', [StaffUserController::class, 'updateSalary']);
+    Route::post('/update-staff/{id}', [StaffUserController::class, 'updateStaff']);
+
 });
 
 Route::prefix('ecom')->group(function () {

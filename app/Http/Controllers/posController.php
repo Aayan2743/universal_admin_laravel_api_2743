@@ -136,7 +136,7 @@ class posController extends Controller
                 'customer_phone'            => $request->customer_phone,
                 // ✅ SAVE JSON COLUMN HERE
                 'shipping_address_snapshot' => $addressSnapshot,
-                'status'                    => 'completed',
+                'status'                    => 'created',
             ]);
 
             // 🧾 Save Sale Items + Deduct Stock

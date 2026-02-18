@@ -37,11 +37,12 @@ class StaffAttendanceController extends Controller
     public function saveAttendance(Request $request)
     {
         $request->validate([
-            'user_id'  => 'required|exists:users,id',
-            'date'     => 'required|date',
-            'status'   => 'required|in:present,absent,leave',
-            'in_time'  => 'nullable',
-            'out_time' => 'nullable',
+            'user_id'   => 'required|exists:users,id',
+            'date'      => 'required|date',
+            'status'    => 'required|in:present,absent,leave,ot,c_off',
+            'in_time'   => 'nullable',
+            'out_time'  => 'nullable',
+            'ot_amount' => 'nullable|numeric|min:0',
         ]);
 
         Attendance::updateOrCreate(
@@ -50,9 +51,12 @@ class StaffAttendanceController extends Controller
                 'date'    => $request->date,
             ],
             [
-                'status'   => $request->status,
-                'in_time'  => $request->in_time,
-                'out_time' => $request->out_time,
+                'status'    => $request->status,
+                'in_time'   => $request->in_time,
+                'out_time'  => $request->out_time,
+                'ot_amount' => $request->status === 'ot'
+                    ? $request->ot_amount
+                    : null,
             ]
         );
 
