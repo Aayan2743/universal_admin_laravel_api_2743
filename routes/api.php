@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\BannerController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CategoryController;
@@ -95,7 +96,8 @@ Route::prefix('admin-dashboard')->middleware(['api', 'jwt.auth'])->group(functio
 
     //===================== PAYMENT GATEWAY SETTINGS =====================
 
-    Route::get('/payment-gateways', [PaymentGatewayController::class, 'show']);
+    // Route::get('/payment-gateways', [PaymentGatewayController::class, 'show']);
+    Route::get('/payment-gateways', [PaymentGatewayController::class, 'index']);
     Route::post('/payment-gateways', [PaymentGatewayController::class, 'store']);
     Route::delete('/payment-gateways', [PaymentGatewayController::class, 'destroy']);
 
@@ -231,6 +233,15 @@ Route::prefix('admin-dashboard')->middleware(['api', 'jwt.auth'])->group(functio
     Route::post('/update-salary', [StaffUserController::class, 'updateSalary']);
     Route::post('/update-staff/{id}', [StaffUserController::class, 'updateStaff']);
 
+    // For Banner Section Dynamic Banner
+
+    Route::get('/banners', [BannerController::class, 'index']);
+    Route::post('/banners', [BannerController::class, 'store']);
+    Route::get('/banners/{id}', [BannerController::class, 'show']);
+    Route::post('/banners/{id}', [BannerController::class, 'update']);
+    Route::patch('/banners/{id}/status', [BannerController::class, 'changeStatus']);
+    Route::delete('/banners/{id}', [BannerController::class, 'destroy']);
+
 });
 
 Route::prefix('ecom')->group(function () {
@@ -252,6 +263,8 @@ Route::prefix('ecom')->group(function () {
 
     // social media
     Route::get('/social-media-settings', [SettingController::class, 'show_social_media']);
+
+    Route::get('/active-banner', [BannerController::class, 'activeBanner']);
 
 });
 
@@ -294,6 +307,13 @@ Route::prefix('user-dashboard')->middleware(['api', 'jwt.auth'])->group(function
     Route::get('/get-wishlist', [WishlistController::class, 'index']);
     Route::post('/wishlist-toggle', [WishlistController::class, 'toggle']);
 
-    // social media
+    // Payment Gateways
+    Route::get('/list-payment-gateways', [PaymentGatewayController::class, 'index']);
+
+    // // phonepay create-order
+    // Route::post('/create-phone-order', [PhonePayController::class, 'create']);
+
+    Route::post('/create-phone-order', [PhonePayController::class, 'create']);
+    Route::post('/payment/status', [PhonePayController::class, 'status'])->name('phonepe.status');
 
 });

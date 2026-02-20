@@ -18,23 +18,26 @@ class PhonePeService
         $this->clientId      = config('payment.phonepe.client_id');
         $this->clientSecret  = config('payment.phonepe.client_secret');
         $this->clientVersion = config('payment.phonepe.client_version');
-        // Ensure no trailing slash
-        $this->baseUrl = rtrim(config('payment.phonepe.base_url'), '/');
+        $this->baseUrl       = config('payment.phonepe.base_url');
 
         if (! $this->merchantId || ! $this->clientId || ! $this->clientSecret) {
-            throw new \Exception('PhonePe credentials missing in .env');
+            throw new \Exception('PhonePe configuration missing.');
         }
     }
 
     protected function getAccessToken(): string
     {
         return Cache::remember('phonepe_access_token', 50 * 60, function () {
-            $response = Http::asForm()->post($this->baseUrl . '/v1/oauth/token', [
-                'client_id'      => $this->clientId,
-                'client_secret'  => $this->clientSecret,
-                'client_version' => $this->clientVersion,
-                'grant_type'     => 'client_credentials',
-            ]);
+
+            $response = Http::asForm()->post(
+                $this->baseUrl . '/v1/oauth/token',
+                [
+                    'client_id'      => $this->clientId,
+                    'client_secret'  => $this->clientSecret,
+                    'client_version' => $this->clientVersion,
+                    'grant_type'     => 'client_credentials',
+                ]
+            );
 
             if (! $response->successful()) {
                 throw new \Exception('PhonePe Token Error: ' . $response->body());
@@ -51,16 +54,19 @@ class PhonePeService
         $response = Http::withHeaders([
             'Authorization' => 'O-Bearer ' . $token,
             'Content-Type'  => 'application/json',
-            'Accept'        => 'application/json',
         ])->post($this->baseUrl . '/checkout/v2/pay', [
             "merchantId"      => $this->merchantId,
             "merchantOrderId" => $merchantOrderId,
-            "amount"          => $amount * 100, // PhonePe works in Paisa
+            "amount"          => $amount * 100,
             "redirectUrl"     => $redirectUrl,
             "paymentFlow"     => [
                 "type" => "PG_CHECKOUT",
             ],
         ]);
+
+        if (! $response->successful()) {
+            throw new \Exception('PhonePe Payment Error: ' . $response->body());
+        }
 
         return $response->json();
     }
@@ -71,8 +77,13 @@ class PhonePeService
 
         $response = Http::withHeaders([
             'Authorization' => 'O-Bearer ' . $token,
-            'Accept'        => 'application/json',
-        ])->get($this->baseUrl . "/checkout/v2/order/{$merchantOrderId}/status");
+        ])->get(
+            $this->baseUrl . "/checkout/v2/order/{$merchantOrderId}/status"
+        );
+
+        if (! $response->successful()) {
+            throw new \Exception('PhonePe Status Error: ' . $response->body());
+        }
 
         return $response->json();
     }

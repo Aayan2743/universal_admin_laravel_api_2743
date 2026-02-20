@@ -70,6 +70,8 @@ class CartController extends Controller
         ]);
     }
 
+    // for rozarpay
+
     public function createOrder(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -84,8 +86,8 @@ class CartController extends Controller
         }
 
         $api = new Api(
-            env('RAZORPAY_KEY_ID'),
-            env('RAZORPAY_KEY_SECRET')
+            env('RAZORPAY_KEY'),
+            env('RAZORPAY_SECRET')
         );
 
         $order = $api->order->create([
@@ -97,6 +99,7 @@ class CartController extends Controller
         return response()->json([
             'success' => true,
             'order'   => $order->toArray(),
+            'key'     => env('RAZORPAY_KEY'),
         ]);
     }
 
