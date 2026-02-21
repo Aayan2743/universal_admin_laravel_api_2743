@@ -7,25 +7,42 @@ use Illuminate\Support\Facades\Http;
 class ShiprocketClient
 {
     protected string $baseUrl;
-    protected string $token;
+    protected string $email;
+    protected string $password;
+    protected ?string $token = null;
 
     public function __construct()
     {
-        $this->baseUrl = config('services.shiprocket.base_url');
-        $this->token   = $this->getToken();
+        // Check if enabled
+        if (! config('services.shipping.shiprocket.enabled')) {
+            throw new \Exception('Shiprocket is disabled');
+        }
+
+        $this->baseUrl  = config('services.shipping.shiprocket.base_url');
+        $this->email    = config('services.shipping.shiprocket.email');
+        $this->password = config('services.shipping.shiprocket.password');
+
+        if (! $this->baseUrl || ! $this->email || ! $this->password) {
+            throw new \Exception('Shiprocket configuration missing');
+        }
+
+        $this->token = $this->getToken();
     }
 
     /* 🔐 LOGIN (CACHED) */
     protected function getToken(): string
     {
         return Cache::remember('shiprocket_token', 3500, function () {
+
             $res = Http::post($this->baseUrl . '/auth/login', [
-                'email'    => config('services.shiprocket.email'),
-                'password' => config('services.shiprocket.password'),
+                'email'    => $this->email,
+                'password' => $this->password,
             ]);
 
             if (! $res->successful()) {
-                throw new \Exception('Shiprocket authentication failed');
+                throw new \Exception(
+                    $res->json('message') ?? 'Shiprocket authentication failed'
+                );
             }
 
             return $res->json('token');
@@ -45,5 +62,11 @@ class ShiprocketClient
         }
 
         return $response->json();
+    }
+
+    /* 🚚 Example Method */
+    public function createOrder(array $payload)
+    {
+        return $this->request('post', '/orders/create/adhoc', $payload);
     }
 }

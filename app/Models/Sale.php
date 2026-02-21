@@ -19,6 +19,8 @@ class Sale extends Model
         'customer_phone',
         'status',
         'shipping_address_snapshot',
+        'tracking_number',
+        'shipping_partner',
     ];
 
     protected $casts = [
@@ -35,7 +37,7 @@ class Sale extends Model
 
     public function items()
     {
-        return $this->hasMany(SaleItem::class);
+        return $this->hasMany(SaleItem::class, 'sale_id');
     }
 
     public function customer()

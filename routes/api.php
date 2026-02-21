@@ -25,6 +25,7 @@ use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\ProductVariationController;
 use App\Http\Controllers\ProductVariationValueController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\ShippingController;
 use App\Http\Controllers\ShiprocketController;
 use App\Http\Controllers\StaffAttendanceController;
 use App\Http\Controllers\StaffUserController;
@@ -114,8 +115,14 @@ Route::prefix('admin-dashboard')->middleware(['api', 'jwt.auth'])->group(functio
     Route::delete('/delete-variation-value/{id}', [ProductVariationValueController::class, 'destroy']);
 
     // Whats App Integration VALUES
-    Route::get('/whatsapp-settings', [WhatsappSettingController::class, 'show']);
+    Route::get('/whatsapp-settings', [WhatsappSettingController::class, 'index']);
     Route::post('/whatsapp-settings', [WhatsappSettingController::class, 'store']);
+
+    // Shipping Details adding and fetching
+    Route::get('/shipping', [ShippingController::class, 'index']);
+    Route::post('/shipping', [ShippingController::class, 'store']);
+    Route::get('/enabled-couriers', [ShippingController::class, 'enabledCouriers']);
+    Route::post('/send-courier/{id}', [ShippingController::class, 'sendCourier']);
 
     // Coupon Management
     Route::get('/cart/list-coupon', [CouponController::class, 'index']);
@@ -221,7 +228,7 @@ Route::prefix('admin-dashboard')->middleware(['api', 'jwt.auth'])->group(functio
     // pos order details fetch
     Route::get('/calling/orders', [posController::class, 'manualOrders']);
     Route::get('/calling/order/{id}', [posController::class, 'manualOrderDetails']);
-    Route::post('/send-courier/{id}', [posController::class, 'sendToCourier']);
+    // Route::post('/send-courier/{id}', [posController::class, 'sendToCourier']);
     Route::get('/customer/{id}/orders', [posController::class, 'customerOrders']);
 
     // adding salary

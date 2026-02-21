@@ -265,7 +265,12 @@ class posController extends Controller
         $message = $this->formatOrderMessage($snapshot, $otp);
 
         // Send WhatsApp
-        $this->messenger->send(
+        // $this->messenger->send(
+        //     $request->customer_phone,
+        //     $message
+        // );
+
+        $response = $this->messenger->send(
             $request->customer_phone,
             $message
         );
@@ -274,6 +279,7 @@ class posController extends Controller
             'success'    => true,
             'message'    => 'OTP sent successfully',
             'pending_id' => $pending->id,
+            'response'   => $response,
         ]);
     }
 
