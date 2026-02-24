@@ -1,6 +1,7 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -33,6 +34,7 @@ class ProductController extends Controller
                 'category.parent:id,name',
                 'brand:id,name',
                 'images:id,product_id,image_path,is_primary',
+                'sections:id,name,slug',
             ])
             ->withMin('variantCombinations as min_price', 'extra_price')
             ->withMin('variantCombinations as min_discount', 'discount')
@@ -66,6 +68,12 @@ class ProductController extends Controller
                     : null,
 
                 'status'        => $p->status,
+                // 🔥 ADD THIS ONLY
+                'sections'      => $p->sections->map(fn($s) => [
+                    'id'   => $s->id,
+                    'name' => $s->name,
+                    'slug' => $s->slug,
+                ])->values(),
             ]),
             'pagination' => [
                 'currentPage' => $products->currentPage(),
@@ -434,6 +442,164 @@ class ProductController extends Controller
                     }),
                 ];
             }),
+        ]);
+    }
+
+    public function collectionssss(Request $request)
+    {
+        $query = Product::query();
+
+        // ================= CATEGORY FILTER =================
+        if ($request->category) {
+
+            // find category by slug
+            $category = Category::where('slug', $request->category)->first();
+
+            if ($category) {
+
+                // 🔥 If MAIN CATEGORY
+                if (is_null($category->parent_id)) {
+
+                    // get all subcategories
+                    $subCategoryIds = Category::where('parent_id', $category->id)
+                        ->pluck('id')
+                        ->toArray();
+
+                    // include main category also (optional)
+                    $subCategoryIds[] = $category->id;
+
+                    $query->whereIn('category_id', $subCategoryIds);
+
+                } else {
+                    // 🔥 If SUBCATEGORY
+                    $query->where('category_id', $category->id);
+                }
+            }
+        }
+
+        // ================= SEARCH (OPTIONAL) =================
+        if ($request->search) {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
+
+                                              // ================= ONLY ACTIVE PRODUCTS =================
+        $query->where('status', 'published'); // or active
+
+        // ================= PAGINATION =================
+        $products = $query->paginate(12);
+
+        return response()->json([
+            'success'    => true,
+            'data'       => $products->items(),
+            'pagination' => [
+                'current_page' => $products->currentPage(),
+                'total_pages'  => $products->lastPage(),
+                'total'        => $products->total(),
+            ],
+        ]);
+    }
+
+    public function collection(Request $request)
+    {
+        $query = Product::query()
+            ->with([
+                'category',
+                'images',
+                'videos',
+                'variantCombinations.values.variation',
+            ])
+            ->where('status', 'Published');
+
+        // ================= CATEGORY FILTER =================
+        if ($request->category) {
+
+            $category = Category::where('slug', $request->category)->first();
+
+            if ($category) {
+
+                $categoryIds = [$category->id];
+
+                // If main category, include subcategories
+                if (is_null($category->parent_id)) {
+                    $subIds = Category::where('parent_id', $category->id)
+                        ->pluck('id')
+                        ->toArray();
+
+                    $categoryIds = array_merge($categoryIds, $subIds);
+                }
+
+                $query->whereIn('category_id', $categoryIds);
+            }
+        }
+
+        $products = $query->latest()->paginate(12);
+
+        return response()->json([
+            'success'    => true,
+            'data'       => $products->map(function ($product) {
+
+                return [
+                    'id'                   => $product->id,
+                    'name'                 => $product->name,
+                    'slug'                 => $product->slug,
+                    'category_id'          => $product->category_id,
+                    'brand_id'             => $product->brand_id,
+                    'description'          => $product->description,
+                    'purchase_price'       => $product->purchase_price,
+                    'base_price'           => $product->base_price,
+                    'discount'             => $product->discount,
+                    'status'               => $product->status,
+                    'created_at'           => $product->created_at,
+                    'updated_at'           => $product->updated_at,
+                    'specifications'       => $product->specifications ?? [],
+                    'extra_details'        => $product->extra_details ?? [],
+                    'deleted_at'           => $product->deleted_at,
+
+                    'category'             => $product->category,
+
+                    'images'               => $product->images,
+
+                    'videos'               => $product->videos,
+
+                    'variant_combinations' => $product->variantCombinations->map(function ($variant) {
+
+                        return [
+                            'id'             => $variant->id,
+                            'product_id'     => $variant->product_id,
+                            'sku'            => $variant->sku,
+                            'purchase_price' => $variant->purchase_price,
+                            'extra_price'    => $variant->extra_price,
+                            'discount'       => $variant->discount,
+                            'quantity'       => $variant->quantity,
+                            'low_quantity'   => $variant->low_quantity,
+                            'created_at'     => $variant->created_at,
+                            'updated_at'     => $variant->updated_at,
+
+                            // 🔥 calculated final amount
+                            'amount'         => $variant->extra_price -
+                            (($variant->extra_price * $variant->discount) / 100),
+
+                            'values'         => $variant->values->map(function ($value) {
+                                return [
+                                    'id'           => $value->id,
+                                    'variation_id' => $value->variation_id,
+                                    'value'        => $value->value,
+                                    'color_code'   => $value->color_code,
+                                    'created_at'   => $value->created_at,
+                                    'updated_at'   => $value->updated_at,
+                                    'variation'    => $value->variation,
+                                ];
+                            }),
+                        ];
+                    }),
+                ];
+            }),
+
+            'pagination' => [
+                'current_page' => $products->currentPage(),
+                'total_pages'  => $products->lastPage(),
+                'total'        => $products->total(),
+            ],
         ]);
     }
 

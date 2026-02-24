@@ -11,9 +11,9 @@ class ProductSeoMetaController extends Controller
     public function store(Request $request, Product $product)
     {
         $validator = Validator::make($request->all(), [
-            'meta_title'       => 'required|string|max:60',
-            'meta_description' => 'required|string|max:160',
-            'meta_tags'        => 'required|string', // comma separated
+            'meta_title'       => 'nullable|string|max:60',
+            'meta_description' => 'nullable|string|max:160',
+            'meta_tags'        => 'nullable|string', // comma separated
         ]);
 
         if ($validator->fails()) {

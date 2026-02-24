@@ -84,4 +84,9 @@ class Product extends Model
             'variant_combination_id'
         );
     }
+
+    public function sections()
+    {
+        return $this->belongsToMany(Section::class, 'product_section', 'product_id', 'section_id');
+    }
 }

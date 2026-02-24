@@ -11,6 +11,7 @@ use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CustomerCareController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\LandingBannerController;
 use App\Http\Controllers\menuController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OtpAuthController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\ProductTaxAffinityController;
 use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\ProductVariationController;
 use App\Http\Controllers\ProductVariationValueController;
+use App\Http\Controllers\SectionController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\ShippingController;
 use App\Http\Controllers\ShiprocketController;
@@ -231,12 +233,6 @@ Route::prefix('admin-dashboard')->middleware(['api', 'jwt.auth'])->group(functio
     // Route::post('/send-courier/{id}', [posController::class, 'sendToCourier']);
     Route::get('/customer/{id}/orders', [posController::class, 'customerOrders']);
 
-    // adding salary
-    // Route::post('/store', [UserSalaryController::class, 'store']);
-    // Route::post('/update', [UserSalaryController::class, 'updateSalary']);
-    // Route::get('/history/{user_id}', [UserSalaryController::class, 'history']);
-    // Route::get('/current/{user_id}', [UserSalaryController::class, 'current']);
-
     Route::post('/update-salary', [StaffUserController::class, 'updateSalary']);
     Route::post('/update-staff/{id}', [StaffUserController::class, 'updateStaff']);
 
@@ -248,6 +244,18 @@ Route::prefix('admin-dashboard')->middleware(['api', 'jwt.auth'])->group(functio
     Route::post('/banners/{id}', [BannerController::class, 'update']);
     Route::patch('/banners/{id}/status', [BannerController::class, 'changeStatus']);
     Route::delete('/banners/{id}', [BannerController::class, 'destroy']);
+
+    // Landing page banner
+    Route::get('/landing-banners', [LandingBannerController::class, 'adminList']);
+    Route::post('/add-banners', [LandingBannerController::class, 'store']);
+    Route::post('/update-banners/{id}', [LandingBannerController::class, 'update']);
+    Route::delete('/delete-banners/{id}', [LandingBannerController::class, 'destroy']);
+
+    // product adding to sections
+    Route::post('/sections', [SectionController::class, 'store']);
+    Route::get('/sections', [SectionController::class, 'index']);
+    Route::post('/products/{id}/sections', [SectionController::class, 'assignSections']);
+    Route::post('/upate-sections/{id}', [SectionController::class, 'update']);
 
 });
 
@@ -272,6 +280,15 @@ Route::prefix('ecom')->group(function () {
     Route::get('/social-media-settings', [SettingController::class, 'show_social_media']);
 
     Route::get('/active-banner', [BannerController::class, 'activeBanner']);
+    // search by slug category wise
+    Route::get('/collections', [ProductController::class, 'collection']);
+    // landing page banner
+    Route::get('/landing-banners', [LandingBannerController::class, 'index']);
+
+    /* Section wise Product Listing */
+    Route::get('/sections/{slug}', [SectionController::class, 'productsBySection']);
+
+    Route::get('/home-sections', [SectionController::class, 'homeSections']);
 
 });
 

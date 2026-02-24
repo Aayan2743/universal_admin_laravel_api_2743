@@ -138,6 +138,7 @@ class menuController extends Controller
                 'images:id,product_id,image_path,is_primary',
                 'videos:id,product_id,video_url',
                 'variantCombinations.values.variation:id,name',
+                'sections:id,name,slug',
             ]);
 
         /* ================= CATEGORY FILTER ================= */
@@ -205,6 +206,7 @@ class menuController extends Controller
                 'images:id,product_id,image_path,is_primary',
                 'videos:id,product_id,video_url',
                 'variantCombinations.values.variation:id,name',
+                'sections:id,name,slug',
             ]);
 
         /* ================= CATEGORY FILTER ================= */
