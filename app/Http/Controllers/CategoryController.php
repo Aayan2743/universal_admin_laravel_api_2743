@@ -43,7 +43,7 @@ class CategoryController extends Controller
         ]);
     }
 
-    public function index_all(Request $request)
+    public function index_all_w(Request $request)
     {
         $search = $request->search;
 
@@ -66,6 +66,33 @@ class CategoryController extends Controller
             }),
         ]);
 
+    }
+
+    public function index_all(Request $request)
+    {
+        $search = $request->search;
+
+        $categories = Category::query()
+            ->with('parent')
+            ->when($search, function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%");
+            })
+            ->orderBy('name', 'asc')
+            ->get();
+
+        return response()->json([
+            'data' => $categories->map(function ($cat) {
+                return [
+                    'id'          => $cat->id,
+                    'name'        => $cat->name,
+                    'parent_id'   => $cat->parent_id,
+                    'parent_name' => $cat->parent?->name,
+                    'image'       => $cat->image
+                        ? asset('storage/categories/' . $cat->image)
+                        : null,
+                ];
+            }),
+        ]);
     }
 
     /* ================= CREATE CATEGORY ================= */
