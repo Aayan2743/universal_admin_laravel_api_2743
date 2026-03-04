@@ -221,7 +221,8 @@ class CategoryController extends Controller
         // ❌ DO NOT delete image file in soft delete
         // Only mark record as deleted
 
-        $category->delete();
+        // $category->delete();
+        $category->forceDelete();
 
         return response()->json([
             'success' => true,
